@@ -4,3 +4,10 @@ sqlalchemy
 psycopg2-binary
 python-multipart
 PyPDF2
+python-docx
+python-dotenv
+pgvector
+sentence-transformers
+python-jose[cryptography]
+passlib[bcrypt]
+pydantic[email]
