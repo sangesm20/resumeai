@@ -16,4 +16,3 @@ numpy
 requests
 python-dotenv
 python-docx
-sentence-transformers

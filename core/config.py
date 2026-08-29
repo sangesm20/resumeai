@@ -7,9 +7,12 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     SUPABASE_URL: str
     SUPABASE_SERVICE_KEY: str
-    
-    # Hugging Face / Embedding configurations
-    HF_API_URL: str = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
+    HF_TOKEN: str
+
+    HF_API_URL: str = (
+        "https://router.huggingface.co/hf-inference/models/"
+        "sentence-transformers/all-MiniLM-L6-v2"
+    )
     DEFAULT_SIMILARITY_THRESHOLD: float = 0.3
     DEFAULT_TOP_K: int = 10
 
