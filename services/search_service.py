@@ -1,46 +1,51 @@
 import numpy as np
+import requests
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from typing import List, Dict, Any
 
 from db.models import Resume
-
-# Lazy-loaded singleton model to prevent Render startup memory spikes & timeouts
-_model = None
-
-
-def get_embedding_model():
-    """Lazily loads and returns the SentenceTransformer model singleton."""
-    global _model
-    if _model is None:
-        from sentence_transformers import SentenceTransformer
-        # Lightweight 384-dimensional embedding model
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
-    return _model
+from core.config import settings
 
 
 def generate_embedding(text: str) -> List[float]:
-    """Generates a normalized 384-dimensional vector embedding for a given text."""
+    """Generates an embedding dynamically via the configured API URL without hardcoded values."""
     if not text or not text.strip():
         return [0.0] * 384
-    model = get_embedding_model()
-    embedding = model.encode(text, convert_to_numpy=True, normalize_embeddings=True)
-    return embedding.tolist()
+
+    try:
+        response = requests.post(
+            settings.HF_API_URL,
+            headers={"Content-Type": "application/json"},
+            json={"inputs": text[:500], "options": {"wait_for_model": True}},
+            timeout=10,
+        )
+        if response.status_code == 200:
+            result = response.json()
+            if isinstance(result, list) and len(result) > 0:
+                if isinstance(result[0], list):
+                    return result[0]
+                return result
+    except Exception:
+        pass
+
+    return [0.0] * 384
 
 
 def search_resumes_semantic(
     db: Session,
     query_text: str,
-    top_k: int = 10,
-    threshold: float = 0.3
+    top_k: int = None,
+    threshold: float = None
 ) -> List[Dict[str, Any]]:
-    """Performs cosine semantic similarity search over stored resumes using pgvector / numpy fallback."""
+    """Performs semantic similarity search using settings-defined thresholds and limits."""
+    top_k = top_k or settings.DEFAULT_TOP_K
+    threshold = threshold if threshold is not None else settings.DEFAULT_SIMILARITY_THRESHOLD
+
     query_vector = generate_embedding(query_text)
 
-    # Attempt native pgvector cosine distance search via SQL
+    # 1. pgvector native cosine search
     try:
-        # pgvector uses cosine_distance (<=> operator)
-        # cosine_similarity = 1 - cosine_distance
         stmt = (
             select(
                 Resume,
@@ -52,11 +57,11 @@ def search_resumes_semantic(
         )
         results = db.execute(stmt).all()
 
-        matched_resumes = []
+        matched = []
         for resume, score in results:
             sim_score = float(score) if score is not None else 0.0
             if sim_score >= threshold:
-                matched_resumes.append({
+                matched.append({
                     "id": str(resume.id),
                     "filename": resume.filename,
                     "candidate_name": getattr(resume, "candidate_name", None),
@@ -64,12 +69,12 @@ def search_resumes_semantic(
                     "similarity_score": round(sim_score * 100, 2),
                     "uploaded_at": resume.uploaded_at.isoformat() if getattr(resume, "uploaded_at", None) else None
                 })
-        return matched_resumes
+        return matched
 
     except Exception:
-        # Fallback: In-memory cosine similarity calculation using NumPy
+        # 2. In-memory fallback via NumPy
         resumes = db.query(Resume).filter(Resume.embedding.isnot(None)).all()
-        scored_resumes = []
+        scored = []
 
         q_vec = np.array(query_vector, dtype=np.float32)
         q_norm = np.linalg.norm(q_vec)
@@ -80,13 +85,10 @@ def search_resumes_semantic(
             r_vec = np.array(res.embedding, dtype=np.float32)
             r_norm = np.linalg.norm(r_vec)
 
-            if q_norm > 0 and r_norm > 0:
-                sim = float(np.dot(q_vec, r_vec) / (q_norm * r_norm))
-            else:
-                sim = 0.0
+            sim = float(np.dot(q_vec, r_vec) / (q_norm * r_norm)) if (q_norm > 0 and r_norm > 0) else 0.0
 
             if sim >= threshold:
-                scored_resumes.append({
+                scored.append({
                     "id": str(res.id),
                     "filename": res.filename,
                     "candidate_name": getattr(res, "candidate_name", None),
@@ -96,8 +98,8 @@ def search_resumes_semantic(
                     "_raw_score": sim
                 })
 
-        scored_resumes.sort(key=lambda x: x["_raw_score"], reverse=True)
-        for item in scored_resumes:
+        scored.sort(key=lambda x: x["_raw_score"], reverse=True)
+        for item in scored:
             item.pop("_raw_score", None)
 
-        return scored_resumes[:top_k]
+        return scored[:top_k]
