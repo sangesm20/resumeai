@@ -1,36 +1,58 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
 from typing import Optional
 
-from db.database import SessionLocal
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
+
 from db.models import HR
-from core.security import get_current_hr
-from services.search_service import search_candidates_service
 
-router = APIRouter(prefix="/search", tags=["Search Candidates"])
+from core.security import (
+    get_current_hr,
+    get_db
+)
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+from services.search_service import (
+    search_candidates_service
+)
+
+
+router = APIRouter(
+    prefix="/search",
+    tags=["Candidate Search"]
+)
+
 
 class SearchQuery(BaseModel):
-    job_description: str
-    min_experience: Optional[int] = 0
+
+    job_description: str = Field(
+        min_length=5
+    )
+
+    min_experience: int = Field(
+        default=0,
+        ge=0
+    )
+
     graduation_year: Optional[int] = None
+
+    top_k: int = Field(
+        default=10,
+        ge=1,
+        le=50
+    )
+
 
 @router.post("")
 def search_candidates(
     payload: SearchQuery,
     current_hr: HR = Depends(get_current_hr),
-    db: Session = Depends(get_db)
+    db=Depends(get_db)
 ):
+
     return search_candidates_service(
-        db=db, 
-        job_description=payload.job_description, 
+        db=db,
+        hr_id=current_hr.id,
+        job_description=payload.job_description,
         min_experience=payload.min_experience,
-        graduation_year=payload.graduation_year
+        graduation_year=payload.graduation_year,
+        top_k=payload.top_k
     )

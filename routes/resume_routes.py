@@ -1,8 +1,17 @@
-from fastapi import APIRouter, UploadFile, File, Depends
-from sqlalchemy.orm import Session
-from db.database import SessionLocal
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    File,
+    Depends
+)
+
 from db.models import HR
-from core.security import get_current_hr
+
+from core.security import (
+    get_current_hr,
+    get_db
+)
+
 from services.resume_service import (
     upload_resume_service,
     download_resume_service,
@@ -10,48 +19,66 @@ from services.resume_service import (
     delete_resume_service
 )
 
-router = APIRouter(prefix="/resumes", tags=["Resumes"])
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+router = APIRouter(
+    prefix="/resumes",
+    tags=["Resumes"]
+)
 
-# Upload Resume (Stored as BYTEA)
+
 @router.post("/upload/{candidate_id}")
 def upload_resume(
-    candidate_id: int, 
-    file: UploadFile = File(...), 
+    candidate_id: int,
+    file: UploadFile = File(...),
     current_hr: HR = Depends(get_current_hr),
-    db: Session = Depends(get_db)
+    db=Depends(get_db)
 ):
-    return upload_resume_service(db, candidate_id, file)
 
-# Download Original Resume (BYTEA -> File Stream)
+    return upload_resume_service(
+        db=db,
+        hr_id=current_hr.id,
+        candidate_id=candidate_id,
+        file=file
+    )
+
+
 @router.get("/download/{resume_id}")
 def download_resume(
-    resume_id: int, 
+    resume_id: int,
     current_hr: HR = Depends(get_current_hr),
-    db: Session = Depends(get_db)
+    db=Depends(get_db)
 ):
-    return download_resume_service(db, resume_id)
 
-# Get all resumes for a candidate
+    return download_resume_service(
+        db=db,
+        hr_id=current_hr.id,
+        resume_id=resume_id
+    )
+
+
 @router.get("/candidate/{candidate_id}")
 def get_resumes(
-    candidate_id: int, 
+    candidate_id: int,
     current_hr: HR = Depends(get_current_hr),
-    db: Session = Depends(get_db)
+    db=Depends(get_db)
 ):
-    return get_resumes_service(db, candidate_id)
 
-# Delete a resume
+    return get_resumes_service(
+        db=db,
+        hr_id=current_hr.id,
+        candidate_id=candidate_id
+    )
+
+
 @router.delete("/{resume_id}")
 def delete_resume(
-    resume_id: int, 
+    resume_id: int,
     current_hr: HR = Depends(get_current_hr),
-    db: Session = Depends(get_db)
+    db=Depends(get_db)
 ):
-    return delete_resume_service(db, resume_id)
+
+    return delete_resume_service(
+        db=db,
+        hr_id=current_hr.id,
+        resume_id=resume_id
+    )

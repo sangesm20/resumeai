@@ -1,8 +1,11 @@
+from fastapi import HTTPException
+
 from db.models import Candidate
 
 
 def create_candidate_service(
     db,
+    hr_id,
     first_name,
     last_name,
     phone,
@@ -12,14 +15,24 @@ def create_candidate_service(
     graduation_year
 ):
 
-    existing = db.query(Candidate).filter(
-        Candidate.email == email
-    ).first()
+    existing = (
+        db.query(Candidate)
+        .filter(
+            Candidate.hr_id == hr_id,
+            Candidate.email == email
+        )
+        .first()
+    )
 
     if existing:
-        return {"error": "Candidate already exists"}
+
+        raise HTTPException(
+            status_code=400,
+            detail="Candidate already exists for this HR"
+        )
 
     candidate = Candidate(
+        hr_id=hr_id,
         first_name=first_name,
         last_name=last_name,
         phone=phone,
@@ -34,40 +47,75 @@ def create_candidate_service(
     db.refresh(candidate)
 
     return {
-        "message": "Candidate created",
+        "message": "Candidate created successfully",
         "candidate_id": candidate.id
     }
 
 
-def get_all_candidates_service(db):
+def get_hr_candidates_service(
+    db,
+    hr_id
+):
 
-    candidates = db.query(Candidate).all()
+    return (
+        db.query(Candidate)
+        .filter(
+            Candidate.hr_id == hr_id
+        )
+        .all()
+    )
 
-    return candidates
 
+def get_candidate_service(
+    db,
+    hr_id,
+    candidate_id
+):
 
-def get_candidate_service(db, candidate_id):
-
-    candidate = db.query(Candidate).filter(
-        Candidate.id == candidate_id
-    ).first()
+    candidate = (
+        db.query(Candidate)
+        .filter(
+            Candidate.id == candidate_id,
+            Candidate.hr_id == hr_id
+        )
+        .first()
+    )
 
     if not candidate:
-        return {"error": "Candidate not found"}
+
+        raise HTTPException(
+            status_code=404,
+            detail="Candidate not found"
+        )
 
     return candidate
 
 
-def delete_candidate_service(db, candidate_id):
+def delete_candidate_service(
+    db,
+    hr_id,
+    candidate_id
+):
 
-    candidate = db.query(Candidate).filter(
-        Candidate.id == candidate_id
-    ).first()
+    candidate = (
+        db.query(Candidate)
+        .filter(
+            Candidate.id == candidate_id,
+            Candidate.hr_id == hr_id
+        )
+        .first()
+    )
 
     if not candidate:
-        return {"error": "Candidate not found"}
+
+        raise HTTPException(
+            status_code=404,
+            detail="Candidate not found"
+        )
 
     db.delete(candidate)
     db.commit()
 
-    return {"message": "Candidate deleted"}
+    return {
+        "message": "Candidate deleted successfully"
+    }

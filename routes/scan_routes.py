@@ -1,23 +1,32 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from db.database import SessionLocal
+
 from db.models import HR
-from core.security import get_current_hr
-from services.scan_service import scan_resume_service
 
-router = APIRouter(prefix="/scan", tags=["Scan & AI"])
+from core.security import (
+    get_current_hr,
+    get_db
+)
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+from services.scan_service import (
+    scan_resume_service
+)
+
+
+router = APIRouter(
+    prefix="/scan",
+    tags=["Scan & AI"]
+)
+
 
 @router.post("/{resume_id}")
 def scan_resume(
-    resume_id: int, 
+    resume_id: int,
     current_hr: HR = Depends(get_current_hr),
-    db: Session = Depends(get_db)
+    db=Depends(get_db)
 ):
-    return scan_resume_service(db, resume_id)
+
+    return scan_resume_service(
+        db=db,
+        hr_id=current_hr.id,
+        resume_id=resume_id
+    )

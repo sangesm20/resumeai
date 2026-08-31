@@ -1,36 +1,96 @@
 import io
-import requests
 
-from PyPDF2 import PdfReader
 from docx import Document
+from PyPDF2 import PdfReader
+
+from huggingface_hub import InferenceClient
+
 from core.config import settings
 
 
-def extract_text_from_bytes(file_bytes: bytes, filename: str) -> str:
-    text = ""
+# =========================================================
+# TEXT EXTRACTION
+# =========================================================
+
+def extract_text_from_bytes(
+    file_bytes: bytes,
+    filename: str
+) -> str:
+
     file_stream = io.BytesIO(file_bytes)
 
-    if filename.lower().endswith(".pdf"):
+    filename_lower = filename.lower()
+
+    text = []
+
+    if filename_lower.endswith(".pdf"):
+
         reader = PdfReader(file_stream)
+
         for page in reader.pages:
-            text += page.extract_text() or ""
 
-    elif filename.lower().endswith(".docx"):
-        doc = Document(file_stream)
-        for para in doc.paragraphs:
-            text += para.text + "\n"
+            page_text = page.extract_text()
 
-    return text.strip()
+            if page_text:
+
+                text.append(page_text)
+
+    elif filename_lower.endswith(".docx"):
+
+        document = Document(file_stream)
+
+        for paragraph in document.paragraphs:
+
+            if paragraph.text.strip():
+
+                text.append(paragraph.text)
+
+    else:
+
+        raise ValueError(
+            "Unsupported file format"
+        )
+
+    return "\n".join(text).strip()
 
 
-def generate_embedding(text: str) -> list:
-    response = requests.post(
-        settings.HF_API_URL,
-        headers={"Authorization": f"Bearer {settings.HF_TOKEN}"},
-        json={"inputs": text.replace("\n", " ").strip()},
-        timeout=60,
+# =========================================================
+# EMBEDDING GENERATION
+# =========================================================
+
+def generate_embedding(
+    text: str
+) -> list[float]:
+
+    if not text or not text.strip():
+
+        raise ValueError(
+            "Text cannot be empty"
+        )
+
+    client = InferenceClient(
+        provider="hf-inference",
+        api_key=settings.HF_TOKEN
     )
-    response.raise_for_status()
 
-    embedding = response.json()
-    return embedding[0] if embedding and isinstance(embedding[0], list) else embedding
+    result = client.feature_extraction(
+        text[:12000],
+        model=settings.HF_MODEL
+    )
+
+    # Convert numpy array → Python list
+    embedding = result.tolist()
+
+    # Sometimes the result can contain an extra dimension
+    if (
+        isinstance(embedding, list)
+        and len(embedding) == 1
+        and isinstance(embedding[0], list)
+    ):
+
+        embedding = embedding[0]
+
+    return [
+        float(value)
+        for value in embedding
+    ]
