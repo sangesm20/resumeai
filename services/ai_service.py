@@ -1,7 +1,6 @@
 import io
-
+import pdfplumber  # type: ignore
 from docx import Document
-from PyPDF2 import PdfReader
 
 from huggingface_hub import InferenceClient
 
@@ -25,15 +24,15 @@ def extract_text_from_bytes(
 
     if filename_lower.endswith(".pdf"):
 
-        reader = PdfReader(file_stream)
+        with pdfplumber.open(file_stream) as pdf:
 
-        for page in reader.pages:
+            for page in pdf.pages:
 
-            page_text = page.extract_text()
+                page_text = page.extract_text()
 
-            if page_text:
+                if page_text:
 
-                text.append(page_text)
+                    text.append(page_text)
 
     elif filename_lower.endswith(".docx"):
 
