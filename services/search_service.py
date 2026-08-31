@@ -170,12 +170,6 @@ def search_candidates_service(
 
     for resume, candidate, embedding_record in results:
 
-        similarity_expression = (
-            1 - embedding_record.embedding.cosine_distance(
-                query_vector
-            )
-        )
-
         # SQLAlchemy expression cannot be directly
         # evaluated here, so calculate using Python.
         resume_vector = list(
@@ -268,8 +262,8 @@ def search_candidates_service(
         # 7. Final match percentage
         #
         # Semantic similarity = 60%
-        # Skill match          = 25%
-        # Experience           = 15%
+        # Skill match         = 25%
+        # Experience          = 15%
         # -------------------------------------------------
 
         final_score = (
