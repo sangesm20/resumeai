@@ -1,7 +1,5 @@
 from fastapi import HTTPException, Response
-
 from db.models import Resume, Candidate
-
 
 ALLOWED_EXTENSIONS = {
     ".pdf",
@@ -15,7 +13,6 @@ def upload_resume_service(
     candidate_id,
     file
 ):
-
     candidate = (
         db.query(Candidate)
         .filter(
@@ -26,24 +23,18 @@ def upload_resume_service(
     )
 
     if not candidate:
-
         raise HTTPException(
             status_code=404,
             detail="Candidate not found"
         )
 
     filename = file.filename or ""
-
     extension = ""
 
     if "." in filename:
-
-        extension = (
-            "." + filename.rsplit(".", 1)[1].lower()
-        )
+        extension = "." + filename.rsplit(".", 1)[1].lower()
 
     if extension not in ALLOWED_EXTENSIONS:
-
         raise HTTPException(
             status_code=400,
             detail="Only PDF and DOCX files are supported"
@@ -52,7 +43,6 @@ def upload_resume_service(
     raw_bytes = file.file.read()
 
     if not raw_bytes:
-
         raise HTTPException(
             status_code=400,
             detail="Uploaded file is empty"
@@ -98,7 +88,6 @@ def download_resume_service(
     hr_id,
     resume_id
 ):
-
     resume = (
         db.query(Resume)
         .join(Candidate)
@@ -110,7 +99,6 @@ def download_resume_service(
     )
 
     if not resume or not resume.file_content:
-
         raise HTTPException(
             status_code=404,
             detail="Resume not found"
@@ -123,8 +111,7 @@ def download_resume_service(
             or "application/octet-stream"
         ),
         headers={
-            "Content-Disposition":
-                f'attachment; filename="{resume.filename}"'
+            "Content-Disposition": f'attachment; filename="{resume.filename}"'
         }
     )
 
@@ -134,7 +121,6 @@ def get_resumes_service(
     hr_id,
     candidate_id
 ):
-
     candidate = (
         db.query(Candidate)
         .filter(
@@ -145,13 +131,12 @@ def get_resumes_service(
     )
 
     if not candidate:
-
         raise HTTPException(
             status_code=404,
             detail="Candidate not found"
         )
 
-    return (
+    resumes = (
         db.query(Resume)
         .filter(
             Resume.candidate_id == candidate_id
@@ -162,13 +147,26 @@ def get_resumes_service(
         .all()
     )
 
+    return [
+        {
+            "id": r.id,
+            "candidate_id": r.candidate_id,
+            "filename": r.filename,
+            "file_type": r.file_type,
+            "file_size": r.file_size,
+            "is_active": r.is_active,
+            "scan_status": r.scan_status,
+            "created_at": str(r.created_at) if r.created_at else None
+        }
+        for r in resumes
+    ]
+
 
 def delete_resume_service(
     db,
     hr_id,
     resume_id
 ):
-
     resume = (
         db.query(Resume)
         .join(Candidate)
@@ -180,7 +178,6 @@ def delete_resume_service(
     )
 
     if not resume:
-
         raise HTTPException(
             status_code=404,
             detail="Resume not found"
