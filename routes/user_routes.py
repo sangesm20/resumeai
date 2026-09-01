@@ -16,13 +16,12 @@ from services.user_service import (
 
 
 router = APIRouter(
-    prefix="/candidates",
-    tags=["Candidates"]
+    prefix="/candidate",
+    tags=["Candidate"]
 )
 
 
 class CandidateCreate(BaseModel):
-
     first_name: str
     last_name: str
     phone: str
@@ -32,13 +31,12 @@ class CandidateCreate(BaseModel):
     graduation_year: int
 
 
-@router.post("")
+@router.post("", summary="Create Candidate")
 def create_candidate(
     payload: CandidateCreate,
     current_hr: HR = Depends(get_current_hr),
     db: Session = Depends(get_db)
 ):
-
     return create_candidate_service(
         db=db,
         hr_id=current_hr.id,
@@ -52,25 +50,23 @@ def create_candidate(
     )
 
 
-@router.get("")
-def get_candidates(
+@router.get("", summary="Get Candidate List")
+def get_candidate_list(
     current_hr: HR = Depends(get_current_hr),
     db: Session = Depends(get_db)
 ):
-
     return get_hr_candidates_service(
         db,
         current_hr.id
     )
 
 
-@router.get("/{candidate_id}")
+@router.get("/{candidate_id}", summary="Get Candidate")
 def get_candidate(
     candidate_id: int,
     current_hr: HR = Depends(get_current_hr),
     db: Session = Depends(get_db)
 ):
-
     return get_candidate_service(
         db,
         current_hr.id,
@@ -78,13 +74,12 @@ def get_candidate(
     )
 
 
-@router.delete("/{candidate_id}")
+@router.delete("/{candidate_id}", summary="Delete Candidate")
 def delete_candidate(
     candidate_id: int,
     current_hr: HR = Depends(get_current_hr),
     db: Session = Depends(get_db)
 ):
-
     return delete_candidate_service(
         db,
         current_hr.id,
