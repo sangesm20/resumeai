@@ -4,14 +4,13 @@ from fastapi import (
     File,
     Depends
 )
+from sqlalchemy.orm import Session
 
 from db.models import HR
-
 from core.security import (
     get_current_hr,
     get_db
 )
-
 from services.resume_service import (
     upload_resume_service,
     download_resume_service,
@@ -19,21 +18,19 @@ from services.resume_service import (
     delete_resume_service
 )
 
-
 router = APIRouter(
     prefix="/resumes",
-    tags=["Resumes"]
+    tags=["Candidate Resumes"]
 )
 
 
-@router.post("/upload/{candidate_id}")
+@router.post("/upload/{candidate_id}", summary="Upload Candidate Resume File")
 def upload_resume(
     candidate_id: int,
     file: UploadFile = File(...),
     current_hr: HR = Depends(get_current_hr),
-    db=Depends(get_db)
+    db: Session = Depends(get_db)
 ):
-
     return upload_resume_service(
         db=db,
         hr_id=current_hr.id,
@@ -42,13 +39,12 @@ def upload_resume(
     )
 
 
-@router.get("/download/{resume_id}")
+@router.get("/download/{resume_id}", summary="Download Resume File Binary")
 def download_resume(
     resume_id: int,
     current_hr: HR = Depends(get_current_hr),
-    db=Depends(get_db)
+    db: Session = Depends(get_db)
 ):
-
     return download_resume_service(
         db=db,
         hr_id=current_hr.id,
@@ -56,13 +52,12 @@ def download_resume(
     )
 
 
-@router.get("/candidate/{candidate_id}")
-def get_resumes(
+@router.get("/candidate/{candidate_id}", summary="Get Candidate Resume History")
+def get_candidate_resumes(
     candidate_id: int,
     current_hr: HR = Depends(get_current_hr),
-    db=Depends(get_db)
+    db: Session = Depends(get_db)
 ):
-
     return get_resumes_service(
         db=db,
         hr_id=current_hr.id,
@@ -70,13 +65,12 @@ def get_resumes(
     )
 
 
-@router.delete("/{resume_id}")
+@router.delete("/{resume_id}", summary="Delete Resume by ID")
 def delete_resume(
     resume_id: int,
     current_hr: HR = Depends(get_current_hr),
-    db=Depends(get_db)
+    db: Session = Depends(get_db)
 ):
-
     return delete_resume_service(
         db=db,
         hr_id=current_hr.id,
