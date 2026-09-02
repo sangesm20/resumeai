@@ -1,3 +1,4 @@
+import re
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -14,39 +15,64 @@ from services.ai_service import (
     generate_embedding
 )
 
-
 SUPPORTED_SKILLS = [
-    "Python",
-    "FastAPI",
-    "PostgreSQL",
-    "SQL",
-    "Docker",
-    "Java",
-    "JavaScript",
-    "React",
-    "Git",
-    "Machine Learning",
-    "Artificial Intelligence",
-    "C++",
-    "AWS",
-    "HTML",
-    "CSS",
-    "Node.js",
-    "Django",
-    "MongoDB",
-    "TypeScript",
-    "C",
-    "Spring Boot",
-    "Kubernetes"
+    # Tech / Programming Skills
+    "Python", "FastAPI", "PostgreSQL", "SQL", "Docker", "Java", "JavaScript", 
+    "React", "Git", "Machine Learning", "Artificial Intelligence", "C++", "AWS", 
+    "HTML", "CSS", "Node.js", "Django", "MongoDB", "TypeScript", "C", 
+    "Spring Boot", "Kubernetes", "Agile Development", "Cloud Management", 
+    "Data Synchronization", "UI/UX", "UI / UX", "Devops Debugger",
+    
+    # Graphic Design Skills (Exact names from resume)
+    "Adobe InDesign",
+    "InDesign",
+    "Adobe Illustrator",
+    "Illustrator",
+    "Adobe Photoshop",
+    "Photoshop",
+    "Figma",
+    "Blender",
+    "Sketchbook",
+    "Affinity Designer",
+    "Canva"
 ]
 
 
-def contains_skill(
-    text: str,
-    skill: str
-) -> bool:
+def contains_skill(text: str, skill: str) -> bool:
+    text_lower = text.lower()
+    skill_lower = skill.lower()
 
-    return skill.lower() in text.lower()
+    # Special handling for C++ so it doesn't strip '+' into a single 'c'
+    if skill_lower == "c++":
+        pattern = r'\bc\+\+\b'
+        return bool(re.search(pattern, text_lower))
+
+    # Multi-word skills-ku normalized check use pannum
+    if any(c in skill for c in [' ', '/', '.', '-']):
+        clean_text = re.sub(r'[\s/,\-_.]+', '', text_lower)
+        clean_skill = re.sub(r'[\s/,\-_.]+', '', skill_lower)
+        return clean_skill in clean_text
+
+    # Single-word skills-ku strict word boundary
+    pattern = r'\b' + re.escape(skill_lower) + r'\b'
+    matches = list(re.finditer(pattern, text_lower))
+
+    if not matches:
+        return False
+
+    for match in matches:
+        end_pos = match.end()
+        context_after = text_lower[end_pos:end_pos + 40]
+
+        # Negative pattern check for AWS location
+        if skill_lower == "aws":
+            location_pattern = r'^\s*,\s*[a-z\s]+,\s*[a-z]{2}\b'
+            if re.match(location_pattern, context_after):
+                continue
+
+        return True
+
+    return False
 
 
 def scan_resume_service(
@@ -54,10 +80,6 @@ def scan_resume_service(
     hr_id: int,
     resume_id: int
 ):
-
-    # -----------------------------------------------------
-    # 1. Get resume and verify HR ownership
-    # -----------------------------------------------------
 
     resume = (
         db.query(Resume)
@@ -70,46 +92,32 @@ def scan_resume_service(
     )
 
     if not resume:
-
-        raise HTTPException(
-            status_code=404,
-            detail="Resume not found"
-        )
+        raise HTTPException(status_code=404, detail="Resume not found")
 
     if not resume.file_content:
-
-        raise HTTPException(
-            status_code=400,
-            detail="Resume BYTEA content is empty"
-        )
+        raise HTTPException(status_code=400, detail="Resume BYTEA content is empty")
 
     try:
-
         resume.scan_status = "Processing"
         db.commit()
 
-        # -------------------------------------------------
-        # 2. Extract text from BYTEA
-        # -------------------------------------------------
-
+        # 1. Extract text from resume using ai_service (forces full OCR/multi-page processing)
         text = extract_text_from_bytes(
             resume.file_content,
             resume.filename
         )
 
         if not text:
+            raise HTTPException(status_code=400, detail="Could not extract text from resume")
 
-            raise HTTPException(
-                status_code=400,
-                detail="Could not extract text from resume"
-            )
+        # Debugging: Print extracted text length and sample snippet to verify complete text reading
+        print(f"--- SCAN SERVICE TEXT LENGTH: {len(text)} ---")
+        print(text[:400])
+        print("---------------------------------------")
 
         text_lower = text.lower()
 
-        # -------------------------------------------------
-        # 3. Remove old skill mappings for this resume
-        # -------------------------------------------------
-
+        # 2. Remove old skill mappings
         (
             db.query(CandidateSkill)
             .filter(
@@ -120,63 +128,38 @@ def scan_resume_service(
             )
         )
 
-        # -------------------------------------------------
-        # 4. Detect skills
-        # -------------------------------------------------
-
+        # 3. Fast & Accurate Skill Detection with Strict Boundaries & Contextual Filtering
         found_skills = []
-
         for skill_name in SUPPORTED_SKILLS:
+            if contains_skill(text_lower, skill_name):
+                normalized_name = skill_name.replace("UI / UX", "UI/UX")
+                if normalized_name in found_skills:
+                    continue
 
-            if not contains_skill(
-                text_lower,
-                skill_name
-            ):
-                continue
-
-            skill = (
-                db.query(Skill)
-                .filter(
-                    Skill.skill_name.ilike(skill_name)
-                )
-                .first()
-            )
-
-            if not skill:
-
-                skill = Skill(
-                    skill_name=skill_name
+                skill = (
+                    db.query(Skill)
+                    .filter(
+                        Skill.skill_name.ilike(normalized_name)
+                    )
+                    .first()
                 )
 
-                db.add(skill)
-                db.flush()
+                if not skill:
+                    skill = Skill(skill_name=normalized_name)
+                    db.add(skill)
+                    db.flush()
 
-            candidate_skill = CandidateSkill(
-                resume_id=resume.id,
-                skill_id=skill.skill_id,
-                candidate_id=resume.candidate_id,
-                experience_years=(
-                    resume.candidate.experience_years
+                candidate_skill = CandidateSkill(
+                    resume_id=resume.id,
+                    skill_id=skill.skill_id,
+                    candidate_id=resume.candidate_id,
+                    experience_years=resume.candidate.experience_years
                 )
-            )
+                db.add(candidate_skill)
+                found_skills.append(normalized_name)
 
-            db.add(candidate_skill)
-
-            found_skills.append(
-                skill_name
-            )
-
-        # -------------------------------------------------
-        # 5. Generate embedding
-        # -------------------------------------------------
-
-        embedding_vector = generate_embedding(
-            text
-        )
-
-        # -------------------------------------------------
-        # 6. Store / update embedding
-        # -------------------------------------------------
+        # 4. Generate and store full resume embedding for semantic search
+        embedding_vector = generate_embedding(text)
 
         embedding_record = (
             db.query(ResumeEmbedding)
@@ -187,30 +170,19 @@ def scan_resume_service(
         )
 
         if embedding_record:
-
-            embedding_record.embedding = (
-                embedding_vector
-            )
-
+            embedding_record.embedding = embedding_vector
         else:
-
             embedding_record = ResumeEmbedding(
                 resume_id=resume.id,
                 embedding=embedding_vector
             )
-
             db.add(embedding_record)
 
-        # -------------------------------------------------
-        # 7. Update status
-        # -------------------------------------------------
-
         resume.scan_status = "Completed"
-
         db.commit()
 
         return {
-            "message": "Resume scanned successfully",
+            "message": "Resume scanned successfully with full OCR text extraction and design skills",
             "resume_id": resume.id,
             "candidate_id": resume.candidate_id,
             "skills_found": found_skills,
@@ -220,19 +192,14 @@ def scan_resume_service(
         }
 
     except HTTPException:
-
         resume.scan_status = "Failed"
         db.commit()
-
         raise
 
     except Exception as exc:
-
         db.rollback()
-
         resume.scan_status = "Failed"
         db.commit()
-
         raise HTTPException(
             status_code=500,
             detail=f"Resume scanning failed: {str(exc)}"

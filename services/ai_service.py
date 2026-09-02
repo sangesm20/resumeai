@@ -1,14 +1,17 @@
 import io
-import pdfplumber  # type: ignore
+from PIL import Image
+import pytesseract
+from pdf2image import convert_from_bytes
 from docx import Document
 
-from huggingface_hub import InferenceClient
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
+from huggingface_hub import InferenceClient
 from core.config import settings
 
 
 # =========================================================
-# TEXT EXTRACTION
+# ROBUST EXTRACTION FOR MULTI-PAGE DOCX AND PDF RESUMES
 # =========================================================
 
 def extract_text_from_bytes(
@@ -16,41 +19,55 @@ def extract_text_from_bytes(
     filename: str
 ) -> str:
 
-    file_stream = io.BytesIO(file_bytes)
-
     filename_lower = filename.lower()
-
-    text = []
+    text_list = []
 
     if filename_lower.endswith(".pdf"):
-
-        with pdfplumber.open(file_stream) as pdf:
-
-            for page in pdf.pages:
-
-                page_text = page.extract_text()
-
-                if page_text:
-
-                    text.append(page_text)
+        print("--- FORCING OCR FOR PDF ---")
+        try:
+            images = convert_from_bytes(
+                file_bytes, 
+                poppler_path=r'C:\Users\user\Downloads\Release-26.02.0-0\poppler-26.02.0\Library\bin'
+            )
+            for idx, img in enumerate(images):
+                ocr_text = pytesseract.image_to_string(img)
+                if ocr_text.strip():
+                    text_list.append(ocr_text)
+        except Exception as e:
+            print(f"PDF OCR Error: {e}")
 
     elif filename_lower.endswith(".docx"):
+        print("--- EXTRACTING FULL DOCX CONTENT (INCLUDING TABLES/COLUMNS) ---")
+        try:
+            doc = Document(io.BytesIO(file_bytes))
+            
+            # 1. Extract from all paragraphs
+            for para in doc.paragraphs:
+                if para.text.strip():
+                    text_list.append(para.text)
+            
+            # 2. Extract from tables (since modern resume templates use tables/columns)
+            for table in doc.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        if cell.text.strip():
+                            text_list.append(cell.text)
+                            
+        except Exception as e:
+            print(f"DOCX Extraction Error: {e}")
 
-        document = Document(file_stream)
-
-        for paragraph in document.paragraphs:
-
-            if paragraph.text.strip():
-
-                text.append(paragraph.text)
+    elif filename_lower.endswith((".png", ".jpg", ".jpeg")):
+        image = Image.open(io.BytesIO(file_bytes))
+        ocr_text = pytesseract.image_to_string(image)
+        if ocr_text.strip():
+            text_list.append(ocr_text)
 
     else:
+        raise ValueError("Unsupported file format")
 
-        raise ValueError(
-            "Unsupported file format"
-        )
-
-    return "\n".join(text).strip()
+    final_text = "\n".join(text_list).strip()
+    print(f"--- FINAL EXTRACTED TEXT LENGTH: {len(final_text)} ---")
+    return final_text
 
 
 # =========================================================
@@ -62,10 +79,7 @@ def generate_embedding(
 ) -> list[float]:
 
     if not text or not text.strip():
-
-        raise ValueError(
-            "Text cannot be empty"
-        )
+        raise ValueError("Text cannot be empty")
 
     client = InferenceClient(
         provider="hf-inference",
@@ -77,16 +91,13 @@ def generate_embedding(
         model=settings.HF_MODEL
     )
 
-    # Convert numpy array → Python list
     embedding = result.tolist()
 
-    # Sometimes the result can contain an extra dimension
     if (
         isinstance(embedding, list)
         and len(embedding) == 1
         and isinstance(embedding[0], list)
     ):
-
         embedding = embedding[0]
 
     return [

@@ -1,6 +1,5 @@
 fastapi
 uvicorn[standard]
-
 sqlalchemy
 psycopg2-binary
 pgvector
@@ -8,15 +7,14 @@ pdfplumber
 pydantic
 pydantic-settings
 email-validator
-
 python-multipart
 python-jose[cryptography]
 bcrypt
-
 PyPDF2
 python-docx
-
 huggingface_hub
 numpy
-
 python-dotenv
+pdf2image
+pytesseract
+Pillow

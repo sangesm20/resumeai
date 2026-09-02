@@ -3,7 +3,10 @@ from db.models import Resume, Candidate
 
 ALLOWED_EXTENSIONS = {
     ".pdf",
-    ".docx"
+    ".docx",
+    ".png",
+    ".jpg",
+    ".jpeg"
 }
 
 
@@ -37,7 +40,7 @@ def upload_resume_service(
     if extension not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail="Only PDF and DOCX files are supported"
+            detail="Only PDF, DOCX, and Image files are supported"
         )
 
     raw_bytes = file.file.read()
@@ -179,7 +182,7 @@ def delete_resume_service(
 
     if not resume:
         raise HTTPException(
-            status_code=404,
+            status_404,  # type: ignore
             detail="Resume not found"
         )
 
