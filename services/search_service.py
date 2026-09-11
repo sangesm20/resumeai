@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 from fastapi import HTTPException
@@ -28,13 +29,15 @@ def extract_required_skills(
 ) -> list[str]:
 
     text = job_description.lower()
-
     found = []
 
     for skill in SUPPORTED_SKILLS:
-
-        if skill.lower() in text:
-
+        skill_lower = skill.lower()
+        
+        # Exact word match panra Regex pattern
+        pattern = r'(?<![a-z0-9])' + re.escape(skill_lower) + r'(?![a-z0-9])'
+        
+        if re.search(pattern, text):
             found.append(skill)
 
     return found
@@ -46,7 +49,6 @@ def calculate_skill_score(
 ) -> float:
 
     if not required_skills:
-
         return 100.0
 
     candidate_skills = {
@@ -75,11 +77,9 @@ def calculate_experience_score(
 ) -> float:
 
     if minimum_experience <= 0:
-
         return 100.0
 
     if candidate_experience >= minimum_experience:
-
         return 100.0
 
     return (
@@ -98,7 +98,6 @@ def search_candidates_service(
 ):
 
     if not job_description.strip():
-
         raise HTTPException(
             status_code=400,
             detail="Job description cannot be empty"
@@ -147,14 +146,12 @@ def search_candidates_service(
     )
 
     if min_experience is not None:
-
         stmt = stmt.where(
             Candidate.experience_years
             >= min_experience
         )
 
     if graduation_year is not None:
-
         stmt = stmt.where(
             Candidate.graduation_year
             == graduation_year
@@ -195,11 +192,8 @@ def search_candidates_service(
         ) ** 0.5
 
         if query_norm == 0 or resume_norm == 0:
-
             semantic_similarity = 0.0
-
         else:
-
             semantic_similarity = (
                 dot_product
                 / (query_norm * resume_norm)
@@ -275,56 +269,41 @@ def search_candidates_service(
         if final_score < (
             settings.DEFAULT_SIMILARITY_THRESHOLD * 100
         ):
-
             continue
 
         candidates.append({
-
             "candidate_id": candidate.id,
-
             "resume_id": resume.id,
-
             "candidate_name": (
                 f"{candidate.first_name} "
                 f"{candidate.last_name}"
             ),
-
             "email": candidate.email,
-
             "experience_years": (
                 candidate.experience_years
             ),
-
             "graduation_year": (
                 candidate.graduation_year
             ),
-
             "skills": candidate_skill_names,
-
             "required_skills": required_skills,
-
             "semantic_score": round(
                 semantic_score,
                 2
             ),
-
             "skill_score": round(
                 skill_score,
                 2
             ),
-
             "experience_score": round(
                 experience_score,
                 2
             ),
-
             "match_percentage": round(
                 final_score,
                 2
             ),
-
             "resume_filename": resume.filename,
-
             "uploaded_at": (
                 resume.created_at.isoformat()
                 if resume.created_at
@@ -343,15 +322,11 @@ def search_candidates_service(
 
     return {
         "job_description": job_description,
-
         "required_skills": required_skills,
-
         "filters": {
             "minimum_experience": min_experience,
             "graduation_year": graduation_year
         },
-
         "total_matches": len(candidates),
-
         "results": candidates[:top_k]
     }

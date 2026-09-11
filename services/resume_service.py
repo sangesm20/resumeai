@@ -31,6 +31,22 @@ def upload_resume_service(
             detail="Candidate not found"
         )
 
+    # ==========================================
+    # ENFORCE 5-RESUME LIMIT
+    # ==========================================
+    resume_count = (
+        db.query(Resume)
+        .filter(Resume.candidate_id == candidate_id)
+        .count()
+    )
+    
+    if resume_count >= 5:
+        raise HTTPException(
+            status_code=400,
+            detail="Resume limit exceeded. A candidate can only have a maximum of 5 resumes."
+        )
+    # ==========================================
+
     filename = file.filename or ""
     extension = ""
 
@@ -182,7 +198,7 @@ def delete_resume_service(
 
     if not resume:
         raise HTTPException(
-            status_404,  # type: ignore
+            status_code=404,
             detail="Resume not found"
         )
 

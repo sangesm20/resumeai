@@ -75,24 +75,31 @@ def contains_skill(text: str, skill: str) -> bool:
     return False
 
 
-def scan_resume_service(
+# ==========================================
+# PUDHU FUNCTION NAME AND PARAMETERS
+# ==========================================
+def scan_active_resume_service(
     db: Session,
     hr_id: int,
-    resume_id: int
+    candidate_id: int
 ):
-
+    # Active resume (is_active == 1) mattum thedi edukkura query
     resume = (
         db.query(Resume)
         .join(Candidate)
         .filter(
-            Resume.id == resume_id,
-            Candidate.hr_id == hr_id
+            Candidate.id == candidate_id,
+            Candidate.hr_id == hr_id,
+            Resume.is_active == 1
         )
         .first()
     )
 
     if not resume:
-        raise HTTPException(status_code=404, detail="Resume not found")
+        raise HTTPException(
+            status_code=404, 
+            detail="No active resume found for this candidate"
+        )
 
     if not resume.file_content:
         raise HTTPException(status_code=400, detail="Resume BYTEA content is empty")
@@ -101,7 +108,7 @@ def scan_resume_service(
         resume.scan_status = "Processing"
         db.commit()
 
-        # 1. Extract text from resume using ai_service (forces full OCR/multi-page processing)
+        # 1. Extract text from resume using ai_service
         text = extract_text_from_bytes(
             resume.file_content,
             resume.filename
@@ -110,7 +117,6 @@ def scan_resume_service(
         if not text:
             raise HTTPException(status_code=400, detail="Could not extract text from resume")
 
-        # Debugging: Print extracted text length and sample snippet to verify complete text reading
         print(f"--- SCAN SERVICE TEXT LENGTH: {len(text)} ---")
         print(text[:400])
         print("---------------------------------------")
@@ -128,7 +134,7 @@ def scan_resume_service(
             )
         )
 
-        # 3. Fast & Accurate Skill Detection with Strict Boundaries & Contextual Filtering
+        # 3. Fast & Accurate Skill Detection
         found_skills = []
         for skill_name in SUPPORTED_SKILLS:
             if contains_skill(text_lower, skill_name):
@@ -158,7 +164,7 @@ def scan_resume_service(
                 db.add(candidate_skill)
                 found_skills.append(normalized_name)
 
-        # 4. Generate and store full resume embedding for semantic search
+        # 4. Generate and store full resume embedding
         embedding_vector = generate_embedding(text)
 
         embedding_record = (
@@ -182,7 +188,7 @@ def scan_resume_service(
         db.commit()
 
         return {
-            "message": "Resume scanned successfully with full OCR text extraction and design skills",
+            "message": "Active resume scanned successfully with full OCR text extraction",
             "resume_id": resume.id,
             "candidate_id": resume.candidate_id,
             "skills_found": found_skills,

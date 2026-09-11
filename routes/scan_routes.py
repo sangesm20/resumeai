@@ -7,8 +7,9 @@ from core.security import (
     get_db
 )
 
+# Namma puthu service function-a import pandrom
 from services.scan_service import (
-    scan_resume_service
+    scan_active_resume_service
 )
 
 
@@ -18,15 +19,17 @@ router = APIRouter(
 )
 
 
-@router.post("/{resume_id}")
+# Route-a "/candidate/{candidate_id}" nu maathiyachu
+@router.post("/candidate/{candidate_id}")
 def scan_resume(
-    resume_id: int,
+    candidate_id: int, # resume_id kku bathila candidate_id ulla vaangurom
     current_hr: HR = Depends(get_current_hr),
     db=Depends(get_db)
 ):
 
-    return scan_resume_service(
+    # Puthu service function-kku candidate_id pass pandrom
+    return scan_active_resume_service(
         db=db,
         hr_id=current_hr.id,
-        resume_id=resume_id
+        candidate_id=candidate_id
     )
