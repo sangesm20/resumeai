@@ -1,10 +1,10 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends,HTTPException
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
-from db.models import HR
+from db.models import HR,models
 from core.security import get_current_hr, get_db
 
 from services.user_service import (
@@ -85,3 +85,18 @@ def delete_candidate(
         current_hr.id,
         candidate_id
     )
+
+    # ... (Existing imports) ...
+
+@router.delete("/{candidate_id}")
+def delete_candidate_profile(candidate_id: int, db: Session = Depends(get_db)):
+    # 1. Find candidate
+    candidate = db.query(models.Candidate).filter(models.Candidate.id == candidate_id).first()
+    
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+        
+    # 2. Delete candidate (Cascade delete in DB handles the resumes automatically)
+    db.delete(candidate)
+    db.commit()
+    return {"message": "Candidate and all associated data deleted successfully"}
