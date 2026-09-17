@@ -154,7 +154,7 @@ def search_candidates_service(
     if graduation_year is not None:
         stmt = stmt.where(
             Candidate.graduation_year
-            == graduation_year
+            >= graduation_year
         )
 
     results = db.execute(stmt).all()
