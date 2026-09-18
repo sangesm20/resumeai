@@ -29,13 +29,18 @@ def extract_required_skills(
 ) -> list[str]:
 
     text = job_description.lower()
+    text = re.sub(r'\bjs\b', 'javascript', text)
     found = []
 
     for skill in SUPPORTED_SKILLS:
         skill_lower = skill.lower()
         
-        # Exact word match panra Regex pattern
-        pattern = r'(?<![a-z0-9])' + re.escape(skill_lower) + r'(?![a-z0-9])'
+        # BUG FIX: Special condition to prevent 'C' from falsely matching inside 'C++' or 'C#'
+        if skill_lower == "c":
+            pattern = r'(?<![a-z0-9])c(?![a-z0-9+#])'
+        else:
+            # Exact word match panra Regex pattern
+            pattern = r'(?<![a-z0-9])' + re.escape(skill_lower) + r'(?![a-z0-9])'
         
         if re.search(pattern, text):
             found.append(skill)
@@ -49,7 +54,7 @@ def calculate_skill_score(
 ) -> float:
 
     if not required_skills:
-        return 100.0
+        return 0.0
 
     candidate_skills = {
         skill.lower()
@@ -114,7 +119,11 @@ def search_candidates_service(
     required_skills = extract_required_skills(
         job_description
     )
-
+    if not required_skills:
+        raise HTTPException(
+            status_code=400,
+            detail="No valid skills detected! Please check for typos or use standard skill names."
+        )
     top_k = (
         top_k
         or settings.DEFAULT_TOP_K
@@ -123,7 +132,7 @@ def search_candidates_service(
     # -----------------------------------------------------
     # 2. Get resumes belonging to this HR
     # -----------------------------------------------------
-
+    
     stmt = (
         select(
             Resume,
@@ -242,6 +251,8 @@ def search_candidates_service(
             candidate_skill_names,
             required_skills
         )
+        if required_skills and skill_score == 0:
+            continue
 
         # -------------------------------------------------
         # 6. Experience score
