@@ -191,7 +191,9 @@ def scan_active_resume_service(
             "message": "Active resume scanned successfully with full OCR text extraction",
             "resume_id": resume.id,
             "candidate_id": resume.candidate_id,
-            "skills_found": found_skills,
+            "skills": found_skills, # 'skills_found' kku bathila 'skills' nu maathiyachu
+            "experience_years": resume.candidate.experience_years, # Puthusa add panniyachu
+            "graduation_year": resume.candidate.graduation_year,   # Puthusa add panniyachu
             "skill_count": len(found_skills),
             "embedding_generated": True,
             "scan_status": resume.scan_status

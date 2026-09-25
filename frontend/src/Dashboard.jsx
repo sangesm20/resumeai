@@ -18,6 +18,14 @@ export default function Dashboard() {
   const [regStatus, setRegStatus] = useState('idle');
   const [regMessage, setRegMessage] = useState('');
 
+  const [formErrors, setFormErrors] = useState({
+    firstName: '',
+    lastName: '',
+    candEmail: '',
+    phone: '',
+    gradYear: ''
+  });
+
   // Upload & Scan States
   const [candidateId, setCandidateId] = useState('');
   const [file, setFile] = useState(null);
@@ -25,7 +33,6 @@ export default function Dashboard() {
   const [uploadMessage, setUploadMessage] = useState('');
   const [scanStatus, setScanStatus] = useState('idle');
   const [scanMessage, setScanMessage] = useState('');
-  // 🔴 Puthu state: Scan panna data-va UI-la kaatta
   const [scanResultData, setScanResultData] = useState(null); 
 
   // Status Check States
@@ -79,8 +86,52 @@ export default function Dashboard() {
     return () => clearTimeout(delayDebounceFn);
   }, [candidateId]);
 
+  const handleValidationChange = (field, value) => {
+    let errorMsg = '';
+    
+    if (field === 'firstName' || field === 'lastName') {
+      if (/[0-9]/.test(value)) {
+        errorMsg = 'Numbers are not allowed. Use alphabets only.';
+      }
+    } 
+    else if (field === 'candEmail') {
+      if (/[A-Z]/.test(value)) {
+        errorMsg = 'Capital letters are not allowed in email.';
+      }
+    } 
+    else if (field === 'phone') {
+      if (/[a-zA-Z]/.test(value)) {
+        errorMsg = 'Alphabets are not allowed. Use numbers only.';
+      }
+    }
+    else if (field === 'gradYear') {
+      if (!/^\d*$/.test(value)) {
+        errorMsg = 'Alphabets are not allowed. Use numbers only.';
+      } 
+      else if (value.length > 0 && value.length !== 4) {
+        errorMsg = 'Year must be exactly 4 digits.';
+      }
+    }
+
+    setFormErrors(prev => ({ ...prev, [field]: errorMsg }));
+
+    if (field === 'firstName') setFirstName(value);
+    if (field === 'lastName') setLastName(value);
+    if (field === 'candEmail') setCandEmail(value);
+    if (field === 'phone') setPhone(value);
+    if (field === 'gradYear') {
+      if (/^\d{0,4}$/.test(value)) {
+        setGradYear(value);
+      }
+    }
+  };
+
+  const hasFormErrors = Object.values(formErrors).some(err => err !== '');
+
   const handleRegister = async (e) => {
     e.preventDefault();
+    if (hasFormErrors || gradYear.length !== 4) return;
+
     setRegStatus('loading');
     try {
       const token = localStorage.getItem('hr_token');
@@ -102,7 +153,7 @@ export default function Dashboard() {
   };
 
   const handleUpload = async () => {
-    if (!candidateId || !file) return;
+    if (!candidateId || !file || isNaN(candidateId)) return;
     setUploadStatus('uploading');
     setScanStatus('idle'); 
     setScanResultData(null);
@@ -124,7 +175,7 @@ export default function Dashboard() {
   };
 
   const handleScan = async () => {
-    if (!candidateId) return;
+    if (!candidateId || isNaN(candidateId)) return;
     setScanStatus('loading');
     setScanResultData(null);
     try {
@@ -134,7 +185,6 @@ export default function Dashboard() {
       });
       setScanStatus('success');
       setScanMessage("AI Scan Complete! Data successfully extracted.");
-      // 🔴 Backend anuppura extracted data-va save panrom
       setScanResultData(response.data);
     } catch (error) {
       setScanStatus('error');
@@ -161,7 +211,6 @@ export default function Dashboard() {
     }
   };
 
-  // Helper function to extract skills array safely
   const getSkillsArray = (data) => {
     if (!data) return [];
     if (Array.isArray(data.skills)) return data.skills;
@@ -204,22 +253,55 @@ export default function Dashboard() {
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
               <h2 className="text-xl font-bold mb-6 text-slate-800">Register New Candidate</h2>
               <form onSubmit={handleRegister} className="space-y-5">
+                
                 <div className="grid grid-cols-2 gap-4">
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">First Name</label><input type="text" required value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label><input type="text" required value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
+                    <input type="text" required value={firstName} onChange={(e) => handleValidationChange('firstName', e.target.value)} className={`w-full px-4 py-2 bg-slate-50 border rounded-lg focus:outline-none transition-colors ${formErrors.firstName ? 'border-red-400 focus:ring-2 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-500'}`} />
+                    {formErrors.firstName && <p className="text-red-500 text-xs mt-1 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{formErrors.firstName}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
+                    <input type="text" required value={lastName} onChange={(e) => handleValidationChange('lastName', e.target.value)} className={`w-full px-4 py-2 bg-slate-50 border rounded-lg focus:outline-none transition-colors ${formErrors.lastName ? 'border-red-400 focus:ring-2 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-500'}`} />
+                    {formErrors.lastName && <p className="text-red-500 text-xs mt-1 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{formErrors.lastName}</p>}
+                  </div>
                 </div>
+
                 <div className="grid grid-cols-2 gap-4">
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Email</label><input type="email" required value={candEmail} onChange={(e) => setCandEmail(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Phone</label><input type="text" required value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                    <input type="text" required value={candEmail} onChange={(e) => handleValidationChange('candEmail', e.target.value)} className={`w-full px-4 py-2 bg-slate-50 border rounded-lg focus:outline-none transition-colors ${formErrors.candEmail ? 'border-red-400 focus:ring-2 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-500'}`} />
+                    {formErrors.candEmail && <p className="text-red-500 text-xs mt-1 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{formErrors.candEmail}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+                    <input type="text" required value={phone} onChange={(e) => handleValidationChange('phone', e.target.value)} className={`w-full px-4 py-2 bg-slate-50 border rounded-lg focus:outline-none transition-colors ${formErrors.phone ? 'border-red-400 focus:ring-2 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-500'}`} />
+                    {formErrors.phone && <p className="text-red-500 text-xs mt-1 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{formErrors.phone}</p>}
+                  </div>
                 </div>
+
                 <div className="grid grid-cols-3 gap-4">
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">DOB</label><input type="date" required value={dob} onChange={(e) => setDob(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Experience</label><input type="number" min="0" required value={expYears} onChange={(e) => setExpYears(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Grad Year</label><input type="number" required value={gradYear} onChange={(e) => setGradYear(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">DOB</label>
+                    <input type="date" required value={dob} onChange={(e) => setDob(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Experience</label>
+                    <input type="number" min="0" required value={expYears} onChange={(e) => setExpYears(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Grad Year</label>
+                    <input type="text" maxLength="4" required value={gradYear} onChange={(e) => handleValidationChange('gradYear', e.target.value)} className={`w-full px-4 py-2 bg-slate-50 border rounded-lg focus:outline-none transition-colors ${formErrors.gradYear ? 'border-red-400 focus:ring-2 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-500'}`} />
+                    {formErrors.gradYear && <p className="text-red-500 text-xs mt-1 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{formErrors.gradYear}</p>}
+                  </div>
                 </div>
+
                 {regStatus === 'success' && <div className="text-green-600 bg-green-50 p-3 rounded-lg flex gap-2"><CheckCircle className="h-5 w-5"/>{regMessage}</div>}
                 {regStatus === 'error' && <div className="text-red-600 bg-red-50 p-3 rounded-lg flex gap-2"><AlertCircle className="h-5 w-5"/>{regMessage}</div>}
-                <button type="submit" disabled={regStatus === 'loading'} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg mt-2">{regStatus === 'loading' ? 'Registering...' : 'Register Candidate'}</button>
+                
+                <button type="submit" disabled={regStatus === 'loading' || hasFormErrors || gradYear.length !== 4} className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 rounded-lg mt-2 transition-all">
+                  {regStatus === 'loading' ? 'Registering...' : 'Register Candidate'}
+                </button>
               </form>
             </div>
           )}
@@ -232,11 +314,21 @@ export default function Dashboard() {
                 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Candidate ID</label>
-                  <input type="text" value={candidateId} onChange={(e) => setCandidateId(e.target.value)} placeholder="Enter ID to check status..." className="w-full px-4 py-3 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <input 
+                    type="text" 
+                    value={candidateId} 
+                    onChange={(e) => setCandidateId(e.target.value)} 
+                    placeholder="Enter ID to check status..." 
+                    className={`w-full px-4 py-3 bg-slate-50 border rounded-lg focus:outline-none transition-colors ${candidateId && isNaN(candidateId) ? 'border-red-400 focus:ring-2 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-500'}`} 
+                  />
                   
-                  {candidateId && !isNaN(candidateId) && (
+                  {candidateId && (
                     <div className="mt-3 flex flex-col gap-2 text-sm font-medium">
-                      {isCheckingStatus ? (
+                      {isNaN(candidateId) ? (
+                         <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-600 rounded-md w-fit">
+                           <AlertCircle className="h-4 w-4"/> Candidate ID must be a number!
+                         </span>
+                      ) : isCheckingStatus ? (
                         <span className="text-slate-500 animate-pulse">Checking status...</span>
                       ) : (
                         <>
@@ -261,18 +353,18 @@ export default function Dashboard() {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Resume File (PDF)</label>
-                  <div className={`relative border-2 border-dashed border-slate-300 rounded-xl p-8 flex flex-col items-center bg-slate-50 ${candidateExists === false ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                    <input type="file" accept=".pdf" onChange={(e) => setFile(e.target.files[0])} disabled={candidateExists === false} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed" />
+                  <div className={`relative border-2 border-dashed border-slate-300 rounded-xl p-8 flex flex-col items-center bg-slate-50 ${(candidateExists === false || isNaN(candidateId)) ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    <input type="file" accept=".pdf" onChange={(e) => setFile(e.target.files[0])} disabled={candidateExists === false || isNaN(candidateId)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed" />
                     <UploadCloud className={`h-10 w-10 mb-2 ${file ? 'text-green-500' : 'text-blue-500'}`} />
                     <p className="text-sm font-medium">{file ? file.name : "Click to select resume"}</p>
                   </div>
                 </div>
 
                 <div className="flex gap-4">
-                  <button onClick={handleUpload} disabled={uploadStatus === 'uploading' || !file || !candidateId || candidateExists === false} className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-all">
+                  <button onClick={handleUpload} disabled={uploadStatus === 'uploading' || !file || !candidateId || candidateExists === false || isNaN(candidateId)} className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-all">
                     <UploadCloud className="h-5 w-5" /> Upload File
                   </button>
-                  <button onClick={handleScan} disabled={!candidateId || scanStatus === 'loading' || hasActiveResume === false} className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-all">
+                  <button onClick={handleScan} disabled={!candidateId || scanStatus === 'loading' || hasActiveResume === false || isNaN(candidateId)} className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-all">
                     <Zap className="h-5 w-5" /> {scanStatus === 'loading' ? 'Scanning...' : 'Extract Data (AI)'}
                   </button>
                 </div>
@@ -280,7 +372,6 @@ export default function Dashboard() {
                 {uploadStatus === 'success' && <div className="text-blue-600 bg-blue-50 p-3 rounded-lg flex gap-2"><CheckCircle className="h-5 w-5"/>{uploadMessage}</div>}
                 {uploadStatus === 'error' && <div className="text-red-600 bg-red-50 p-3 rounded-lg flex gap-2"><AlertCircle className="h-5 w-5"/>{uploadMessage}</div>}
                 
-                {/* 🔴 Scan Success and Extracted Data Display */}
                 {scanStatus === 'success' && (
                   <div className="border border-green-200 bg-green-50 rounded-xl p-5 mt-4">
                     <div className="flex items-center gap-2 mb-4 border-b border-green-200 pb-3">
@@ -335,7 +426,9 @@ export default function Dashboard() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Min Experience (Years)</label><input type="number" min="0" value={searchMinExp} onChange={(e) => setSearchMinExp(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Graduation Year (Optional)</label><input type="number" value={searchGradYear} onChange={(e) => setSearchGradYear(e.target.value)} placeholder="e.g., 2024" className="w-full px-4 py-2 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+                  
+                  {/* 🔴 Label Changed to 'Min Graduation Year' */}
+                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Min Graduation Year (Optional)</label><input type="number" value={searchGradYear} onChange={(e) => setSearchGradYear(e.target.value)} placeholder="e.g., 2024" className="w-full px-4 py-2 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
                 </div>
                 <button type="submit" disabled={searchStatus === 'loading'} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg flex justify-center items-center gap-2">
                   <Search className="h-5 w-5" /> {searchStatus === 'loading' ? 'Searching Database...' : 'Find Best Candidates'}
@@ -350,21 +443,20 @@ export default function Dashboard() {
                     <p className="text-slate-500">No candidates match your criteria.</p>
                   ) : (
                     searchResults.map((cand, idx) => {
-                      // Backend might return match_score, score, or similarity
-                      const rawScore = cand.match_score || cand.score || cand.similarity || 0;
-                      const percentage = Math.round(rawScore * 100);
+                      
+                      const percentage = Math.round(cand.match_percentage || 0);
+                      const candName = cand.candidate_name || `${cand.first_name || ''} ${cand.last_name || ''}`.trim();
                       
                       return (
                         <div key={idx} className="p-5 border-2 border-slate-200 rounded-xl bg-white hover:border-indigo-300 hover:shadow-md transition-all">
                           
                           <div className="flex justify-between items-start mb-4">
                             <div>
-                              <h4 className="font-bold text-indigo-700 text-xl">{cand.first_name} {cand.last_name}</h4>
-                              <p className="text-sm text-slate-500 font-medium">Candidate ID: {cand.id || cand.candidate_id}</p>
+                              <h4 className="font-bold text-indigo-700 text-xl">{candName}</h4>
+                              <p className="text-sm text-slate-500 font-medium">Candidate ID: {cand.candidate_id || cand.id}</p>
                             </div>
                             
-                            {/* 🔴 Highlighting Matching % */}
-                            {rawScore > 0 && (
+                            {percentage > 0 && (
                               <div className="flex flex-col items-end">
                                 <span className={`flex items-center gap-1 font-bold px-3 py-1.5 rounded-lg text-sm ${percentage >= 75 ? 'bg-green-100 text-green-700' : percentage >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                                   <Award className="h-4 w-4" /> Match: {percentage}%
@@ -374,13 +466,12 @@ export default function Dashboard() {
                           </div>
 
                           <div className="text-sm text-slate-700 grid grid-cols-2 gap-y-3 bg-slate-50 p-4 rounded-lg">
-                            <p><span className="font-semibold block text-slate-500 text-xs uppercase tracking-wider">Email</span> {cand.email}</p>
-                            <p><span className="font-semibold block text-slate-500 text-xs uppercase tracking-wider">Phone</span> {cand.phone}</p>
+                            <p><span className="font-semibold block text-slate-500 text-xs uppercase tracking-wider">Email</span> {cand.email || 'N/A'}</p>
+                            <p><span className="font-semibold block text-slate-500 text-xs uppercase tracking-wider">Phone</span> {cand.phone || 'N/A'}</p>
                             <p><span className="font-semibold block text-slate-500 text-xs uppercase tracking-wider">Experience</span> {cand.experience_years ?? 0} Years</p>
                             {cand.graduation_year && <p><span className="font-semibold block text-slate-500 text-xs uppercase tracking-wider">Grad Year</span> {cand.graduation_year}</p>}
                           </div>
                           
-                          {/* 🔴 Search Result-layum Skills kaatta (if backend sends it) */}
                           {getSkillsArray(cand).length > 0 && (
                             <div className="mt-4 pt-3 border-t border-slate-100">
                               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Matched Skills</span>
