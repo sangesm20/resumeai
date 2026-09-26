@@ -64,10 +64,10 @@ export default function Dashboard() {
       try {
         const token = localStorage.getItem('hr_token');
         try {
-          await axios.get(`http://localhost:8000/candidate/${candidateId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+          await axios.get(`https://resumeai-b934.onrender.com/candidate/${candidateId}`, { headers: { 'Authorization': `Bearer ${token}` } });
           setCandidateExists(true);
           
-          const resResponse = await axios.get(`http://localhost:8000/resumes/candidate/${candidateId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+          const resResponse = await axios.get(`https://resumeai-b934.onrender.com/resumes/candidate/${candidateId}`, { headers: { 'Authorization': `Bearer ${token}` } });
           if (resResponse.data && resResponse.data.length > 0) {
             setHasActiveResume(true);
           } else {
@@ -135,7 +135,7 @@ export default function Dashboard() {
     setRegStatus('loading');
     try {
       const token = localStorage.getItem('hr_token');
-      const response = await axios.post('http://localhost:8000/candidate', {
+      const response = await axios.post('https://resumeai-b934.onrender.com/candidate', {
         first_name: firstName, last_name: lastName, phone, email: candEmail, 
         dob, experience_years: parseInt(expYears), graduation_year: parseInt(gradYear)
       }, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -162,7 +162,7 @@ export default function Dashboard() {
 
     try {
       const token = localStorage.getItem('hr_token');
-      await axios.post(`http://localhost:8000/resumes/upload/${candidateId}`, formData, {
+      await axios.post(`https://resumeai-b934.onrender.com/resumes/upload/${candidateId}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data', 'Authorization': `Bearer ${token}` }
       });
       setUploadStatus('success');
@@ -180,7 +180,7 @@ export default function Dashboard() {
     setScanResultData(null);
     try {
       const token = localStorage.getItem('hr_token');
-      const response = await axios.post(`http://localhost:8000/scan/candidate/${candidateId}`, {}, {
+      const response = await axios.post(`https://resumeai-b934.onrender.com/scan/candidate/${candidateId}`, {}, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       setScanStatus('success');
@@ -200,7 +200,7 @@ export default function Dashboard() {
       const payload = { job_description: jobDesc, min_experience: parseInt(searchMinExp) || 0, top_k: 10 };
       if (searchGradYear) payload.graduation_year = parseInt(searchGradYear);
 
-      const response = await axios.post('http://localhost:8000/search', payload, {
+      const response = await axios.post('https://resumeai-b934.onrender.com/search', payload, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       setSearchResults(Array.isArray(response.data) ? response.data : response.data.results || []);

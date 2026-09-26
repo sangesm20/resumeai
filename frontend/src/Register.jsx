@@ -30,7 +30,7 @@ export default function Register() {
     setRegError('');
 
     try {
-      await axios.post('http://localhost:8000/auth/register', {
+      await axios.post('https://resumeai-b934.onrender.com/auth/register', {
         name: name,
         email: email,
         password: password
