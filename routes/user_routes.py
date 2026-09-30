@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends,HTTPException
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
-from db.models import HR,
+from db.models import HR
+from db import models
 from core.security import get_current_hr, get_db
 
 from services.user_service import (
