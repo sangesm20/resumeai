@@ -102,7 +102,7 @@ class Candidate(Base):
 
     email = Column(
         String,
-        nullable=False
+        nullable=True
     )
 
     dob = Column(
@@ -173,7 +173,7 @@ class Resume(Base):
     )
 
     file_type = Column(
-        String(100),
+        String(225),
         nullable=True
     )
 
