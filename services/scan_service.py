@@ -1,6 +1,8 @@
 import re
+import logging
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from db.models import (
     Resume,
@@ -15,27 +17,8 @@ from services.ai_service import (
     generate_embedding
 )
 
-SUPPORTED_SKILLS = [
-    # Tech / Programming Skills
-    "Python", "FastAPI", "PostgreSQL", "SQL", "Docker", "Java", "JavaScript", 
-    "React", "Git", "Machine Learning", "Artificial Intelligence", "C++", "AWS", 
-    "HTML", "CSS", "Node.js", "Django", "MongoDB", "TypeScript", "C", 
-    "Spring Boot", "Kubernetes", "Agile Development", "Cloud Management", 
-    "Data Synchronization", "UI/UX", "UI / UX", "Devops Debugger",
-    
-    # Graphic Design Skills (Exact names from resume)
-    "Adobe InDesign",
-    "InDesign",
-    "Adobe Illustrator",
-    "Illustrator",
-    "Adobe Photoshop",
-    "Photoshop",
-    "Figma",
-    "Blender",
-    "Sketchbook",
-    "Affinity Designer",
-    "Canva"
-]
+# Logger setup
+logger = logging.getLogger(__name__)
 
 
 def contains_skill(text: str, skill: str) -> bool:
@@ -76,50 +59,53 @@ def contains_skill(text: str, skill: str) -> bool:
 
 
 # ==========================================
-# PUDHU FUNCTION NAME AND PARAMETERS
+# SCAN ACTIVE RESUME SERVICE
 # ==========================================
 def scan_active_resume_service(
     db: Session,
     hr_id: int,
     candidate_id: int
 ):
-    # Active resume (is_active == 1) mattum thedi edukkura query
-    resume = (
-        db.query(Resume)
-        .join(Candidate)
-        .filter(
-            Candidate.id == candidate_id,
-            Candidate.hr_id == hr_id,
-            Resume.is_active == 1
-        )
-        .first()
-    )
-
-    if not resume:
-        raise HTTPException(
-            status_code=404, 
-            detail="No active resume found for this candidate"
-        )
-
-    if not resume.file_content:
-        raise HTTPException(status_code=400, detail="Resume BYTEA content is empty")
-
     try:
+        # Active resume (is_active == 1) mattum thedi edukkura query - Ippo safe zone-la irukku!
+        resume = (
+            db.query(Resume)
+            .join(Candidate)
+            .filter(
+                Candidate.id == candidate_id,
+                Candidate.hr_id == hr_id,
+                Resume.is_active == 1
+            )
+            .first()
+        )
+
+        if not resume:
+            logger.warning(f"No active resume found for candidate {candidate_id}")
+            raise HTTPException(
+                status_code=404, 
+                detail="No active resume found for this candidate"
+            )
+
+        if not resume.file_content:
+            logger.error(f"Resume BYTEA content is empty for resume {resume.id}")
+            raise HTTPException(status_code=400, detail="Resume BYTEA content is empty")
+
         resume.scan_status = "Processing"
         db.commit()
 
         # 1. Extract text from resume using ai_service
+        logger.info(f"Starting AI text extraction for resume {resume.id}")
         text = extract_text_from_bytes(
             resume.file_content,
             resume.filename
         )
 
         if not text:
+            logger.error(f"Text extraction failed for resume {resume.id}")
             raise HTTPException(status_code=400, detail="Could not extract text from resume")
 
-        print(f"--- SCAN SERVICE TEXT LENGTH: {len(text)} ---")
-        print(text[:400])
-        print("---------------------------------------")
+        logger.info(f"--- SCAN SERVICE TEXT LENGTH: {len(text)} ---")
+        logger.debug(f"Extracted text preview: {text[:400]}")
 
         text_lower = text.lower()
 
@@ -134,9 +120,12 @@ def scan_active_resume_service(
             )
         )
 
-        # 3. Fast & Accurate Skill Detection
+        # 3. Fast & Accurate Skill Detection (Database Driven)
+        all_db_skills = db.query(Skill).all()
+        supported_skills_from_db = [skill.skill_name for skill in all_db_skills]
+
         found_skills = []
-        for skill_name in SUPPORTED_SKILLS:
+        for skill_name in supported_skills_from_db:
             if contains_skill(text_lower, skill_name):
                 normalized_name = skill_name.replace("UI / UX", "UI/UX")
                 if normalized_name in found_skills:
@@ -165,6 +154,7 @@ def scan_active_resume_service(
                 found_skills.append(normalized_name)
 
         # 4. Generate and store full resume embedding
+        logger.info(f"Generating embeddings for resume {resume.id}")
         embedding_vector = generate_embedding(text)
 
         embedding_record = (
@@ -186,29 +176,49 @@ def scan_active_resume_service(
 
         resume.scan_status = "Completed"
         db.commit()
+        
+        logger.info(f"Successfully scanned resume {resume.id} for candidate {candidate_id}")
 
         return {
             "message": "Active resume scanned successfully with full OCR text extraction",
             "resume_id": resume.id,
             "candidate_id": resume.candidate_id,
-            "skills": found_skills, # 'skills_found' kku bathila 'skills' nu maathiyachu
-            "experience_years": resume.candidate.experience_years, # Puthusa add panniyachu
-            "graduation_year": resume.candidate.graduation_year,   # Puthusa add panniyachu
+            "skills": found_skills,
+            "experience_years": resume.candidate.experience_years,
+            "graduation_year": resume.candidate.graduation_year,
             "skill_count": len(found_skills),
             "embedding_generated": True,
             "scan_status": resume.scan_status
         }
 
-    except HTTPException:
-        resume.scan_status = "Failed"
-        db.commit()
+    except HTTPException as http_exc:
+        # FastAPI errors-a apdiye anuppidalam, aana fail aana status update pannanum
+        if 'resume' in locals() and resume and http_exc.status_code != 404:
+            resume.scan_status = "Failed"
+            db.commit()
         raise
+
+    except SQLAlchemyError as db_err:
+        db.rollback()
+        logger.error(f"Database error during scan for candidate {candidate_id}: {str(db_err)}")
+        if 'resume' in locals() and resume:
+            try:
+                resume.scan_status = "Failed"
+                db.commit()
+            except:
+                pass
+        raise HTTPException(status_code=500, detail="Database error occurred during resume scanning.")
 
     except Exception as exc:
         db.rollback()
-        resume.scan_status = "Failed"
-        db.commit()
+        logger.error(f"Unexpected error during resume scan for candidate {candidate_id}: {str(exc)}", exc_info=True)
+        if 'resume' in locals() and resume:
+            try:
+                resume.scan_status = "Failed"
+                db.commit()
+            except:
+                pass
         raise HTTPException(
             status_code=500,
-            detail=f"Resume scanning failed: {str(exc)}"
+            detail=f"Resume scanning failed due to an internal error."
         )

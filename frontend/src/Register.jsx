@@ -30,7 +30,7 @@ export default function Register() {
     setRegError('');
 
     try {
-      await axios.post('https://resumeai-b934.onrender.com/auth/register', {
+      await axios.post('https://resume-ai-backend.onrender.com/auth/register', {
         name: name,
         email: email,
         password: password
