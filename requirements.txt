@@ -11,6 +11,7 @@ python-multipart
 python-jose[cryptography]
 bcrypt
 PyPDF2
+pypdf
 python-docx
 huggingface_hub
 numpy
