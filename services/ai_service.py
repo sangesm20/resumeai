@@ -2,15 +2,15 @@ import io
 import logging
 from PIL import Image
 import pytesseract
-from pdf2image import convert_from_bytes
+from pypdf import PdfReader  # PyPDF2 ku bathila pypdf use panrom
 from docx import Document
 
 # Set up the logger for this file
 logger = logging.getLogger(__name__)
 
-# NOTE: These Windows paths will cause your Render (Linux) deployment to crash!
-# You will need to update these to work inside your Docker container.
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+# NOTE: Render (Linux) deployment-kku Tesseract path thevaiyilla (Linux automatic-a path eduthukkum)
+# Local Windows-kku mattum inga irukkatum, illana comment pannidalam.
+# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 from huggingface_hub import InferenceClient
 from core.config import settings
@@ -27,18 +27,15 @@ def extract_text_from_bytes(
     text_list = []
 
     if filename_lower.endswith(".pdf"):
-        logger.info(f"--- FORCING OCR FOR PDF: {filename} ---")
+        logger.info(f"--- EXTRACTING TEXT FROM PDF USING pypdf: {filename} ---")
         try:
-            images = convert_from_bytes(
-                file_bytes, 
-                poppler_path=r'C:\Users\user\Downloads\Release-26.02.0-0\poppler-26.02.0\Library\bin'
-            )
-            for idx, img in enumerate(images):
-                ocr_text = pytesseract.image_to_string(img)
-                if ocr_text.strip():
-                    text_list.append(ocr_text)
+            reader = PdfReader(io.BytesIO(file_bytes))
+            for page in reader.pages:
+                page_text = page.extract_text()
+                if page_text and page_text.strip():
+                    text_list.append(page_text)
         except Exception as e:
-            logger.error(f"PDF OCR Error processing {filename}: {str(e)}", exc_info=True)
+            logger.error(f"PDF Extraction Error processing {filename}: {str(e)}", exc_info=True)
             raise Exception(f"Failed to parse PDF document: {filename}")
 
     elif filename_lower.endswith(".docx"):
@@ -118,6 +115,5 @@ def generate_embedding(
             for value in embedding
         ]
     except Exception as e:
-        # We don't want to expose API keys or internal HF errors to the frontend
         logger.error(f"HuggingFace API Integration Error: {str(e)}", exc_info=True)
         raise Exception("Failed to generate AI embeddings due to an external service error.")
