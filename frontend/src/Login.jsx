@@ -34,7 +34,7 @@ export default function Login() {
       formData.append('username', email);
       formData.append('password', password);
 
-      const response = await axios.post('https://resume-ai-backend.onrender.com/auth/login', formData, {
+      const response = await axios.post('/auth/login', formData, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
       });
       

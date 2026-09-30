@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from db.database import engine, Base
 import db.models
-
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from routes.auth_routes import router as auth_router
 from routes.user_routes import router as user_router
 from routes.resume_routes import router as resume_router
@@ -91,3 +92,8 @@ def health_check():
     return {
         "status": "healthy"
     }
+app.mount("/assets", StaticFiles(directory="frontend/dist/assets"), name="assets")
+
+@app.get("/{catchall:path}")
+def serve_react_app(catchall: str):
+    return FileResponse("frontend/dist/index.html")
